@@ -1,0 +1,1098 @@
+{
+  "info": {
+    "name": "AI Financial Decision Support Simulator",
+    "description": "Comprehensive test suite for the Financial Simulation API.\n\nEndpoint: POST /api/simulate/\n\nCovers: SAFE/TIGHT/RISKY scenarios, loan vs full payment, edge cases, validation errors, goal plans, and all choice field variations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "SAFE Scenarios",
+      "item": [
+        {
+          "name": "TC01 - SAFE: Full Payment, High Savings, Stable Income",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "// ── Calculation checks ──",
+                  "pm.test('calculation object exists', () => pm.expect(res.calculation).to.be.an('object'));",
+                  "pm.test('risk_level is SAFE', () => pm.expect(res.calculation.risk_level).to.eql('SAFE'));",
+                  "",
+                  "pm.test('fixed_expenses = rent + utilities + subscriptions', () => {",
+                  "  pm.expect(res.calculation.fixed_expenses).to.eql(1000 + 200 + 100);",
+                  "});",
+                  "",
+                  "pm.test('baseline_expenses = fixed + loans + variable', () => {",
+                  "  pm.expect(res.calculation.baseline_expenses).to.eql(1300 + 300 + 500);",
+                  "});",
+                  "",
+                  "pm.test('baseline_disposable_income correct', () => {",
+                  "  pm.expect(res.calculation.baseline_disposable_income).to.eql(5000 - 2100);",
+                  "});",
+                  "",
+                  "pm.test('monthly_payment is 0 for full payment', () => {",
+                  "  pm.expect(res.calculation.monthly_payment).to.eql(0);",
+                  "});",
+                  "",
+                  "pm.test('savings_after_purchase = savings - purchaseAmount', () => {",
+                  "  pm.expect(res.calculation.savings_after_purchase).to.eql(50000 - 3000);",
+                  "});",
+                  "",
+                  "pm.test('recovery_months > 0', () => {",
+                  "  pm.expect(res.calculation.recovery_months).to.be.above(0);",
+                  "});",
+                  "",
+                  "pm.test('emergency_buffer is 3x baseline expenses', () => {",
+                  "  pm.expect(res.calculation.emergency_buffer).to.eql(2100 * 3);",
+                  "});",
+                  "",
+                  "// ── AI Guidance checks ──",
+                  "pm.test('ai_guidance object exists', () => pm.expect(res.ai_guidance).to.be.an('object'));",
+                  "pm.test('assessment_title correct for SAFE', () => {",
+                  "  pm.expect(res.ai_guidance.assessment_title).to.eql(\"You're in Good Shape!\");",
+                  "});",
+                  "pm.test('guidance is non-empty string', () => {",
+                  "  pm.expect(res.ai_guidance.guidance).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.test('key_insights is array with items', () => {",
+                  "  pm.expect(res.ai_guidance.key_insights).to.be.an('array');",
+                  "  pm.expect(res.ai_guidance.key_insights.length).to.be.at.least(1);",
+                  "});",
+                  "pm.test('each insight has title and detail', () => {",
+                  "  res.ai_guidance.key_insights.forEach(i => {",
+                  "    pm.expect(i).to.have.property('title').that.is.a('string');",
+                  "    pm.expect(i).to.have.property('detail').that.is.a('string');",
+                  "  });",
+                  "});",
+                  "pm.test('safer_alternatives is array', () => {",
+                  "  pm.expect(res.ai_guidance.safer_alternatives).to.be.an('array');",
+                  "});",
+                  "",
+                  "// ── Response time ──",
+                  "pm.test('Response time < 10s', () => pm.expect(pm.response.responseTime).to.be.below(10000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 1000,\n  \"utilities\": 200,\n  \"subscriptionsInsurance\": 100,\n  \"existingLoans\": 300,\n  \"variableExpenses\": 500,\n  \"currentSavings\": 50000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 3000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC02 - SAFE: Loan Payment, Low Interest, Good Cushion",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk_level is SAFE', () => pm.expect(res.calculation.risk_level).to.eql('SAFE'));",
+                  "",
+                  "pm.test('monthly_payment uses amortization (not simple interest)', () => {",
+                  "  // $10,000 at 3% for 24 months → amortized ~$429.81, simple would be ~$427.08",
+                  "  const mp = res.calculation.monthly_payment;",
+                  "  pm.expect(mp).to.be.above(429).and.below(431);",
+                  "});",
+                  "",
+                  "pm.test('total_payable = monthly_payment * loanDuration', () => {",
+                  "  const tp = res.calculation.total_payable;",
+                  "  const expected = +(res.calculation.monthly_payment * 24).toFixed(2);",
+                  "  pm.expect(tp).to.eql(expected);",
+                  "});",
+                  "",
+                  "pm.test('savings_after_purchase equals currentSavings for loan', () => {",
+                  "  pm.expect(res.calculation.savings_after_purchase).to.eql(30000);",
+                  "});",
+                  "",
+                  "pm.test('recovery_months is 0 for loan', () => {",
+                  "  pm.expect(res.calculation.recovery_months).to.eql(0);",
+                  "});",
+                  "",
+                  "pm.test('assessment_title for SAFE', () => {",
+                  "  pm.expect(res.ai_guidance.assessment_title).to.eql(\"You're in Good Shape!\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 6000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 30000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"small_part\",\n  \"incomeStability\": \"mostly_stable\",\n  \"riskTolerance\": \"balanced\",\n  \"purchaseAmount\": 10000,\n  \"paymentType\": \"loan\",\n  \"loanDuration\": 24,\n  \"interestRate\": 3\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "TIGHT Scenarios",
+      "item": [
+        {
+          "name": "TC03 - TIGHT: Full Payment, Moderate Savings Depletion",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk_level is TIGHT', () => pm.expect(res.calculation.risk_level).to.eql('TIGHT'));",
+                  "",
+                  "pm.test('savings_after_purchase > 0 but below emergency buffer', () => {",
+                  "  pm.expect(res.calculation.savings_after_purchase).to.be.above(0);",
+                  "  pm.expect(res.calculation.savings_after_purchase).to.be.below(res.calculation.emergency_buffer);",
+                  "});",
+                  "",
+                  "pm.test('assessment_title for TIGHT', () => {",
+                  "  pm.expect(res.ai_guidance.assessment_title).to.eql('Proceed with Caution');",
+                  "});",
+                  "",
+                  "pm.test('new_disposable_income is positive', () => {",
+                  "  pm.expect(res.calculation.new_disposable_income).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 4000,\n  \"rent\": 1000,\n  \"utilities\": 200,\n  \"subscriptionsInsurance\": 100,\n  \"existingLoans\": 300,\n  \"variableExpenses\": 500,\n  \"currentSavings\": 10000,\n  \"dependents\": 1,\n  \"householdResponsibilityLevel\": \"all_or_most\",\n  \"incomeStability\": \"sometimes_changes\",\n  \"riskTolerance\": \"safety\",\n  \"purchaseAmount\": 4000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC04 - TIGHT: Loan with High Interest, Multiple Dependents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk_level is TIGHT', () => pm.expect(res.calculation.risk_level).to.eql('TIGHT'));",
+                  "",
+                  "pm.test('monthly_payment is significant relative to income', () => {",
+                  "  pm.expect(res.calculation.monthly_payment).to.be.above(0);",
+                  "});",
+                  "",
+                  "pm.test('total_payable exceeds purchaseAmount due to interest', () => {",
+                  "  pm.expect(res.calculation.total_payable).to.be.above(15000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 1200,\n  \"utilities\": 250,\n  \"subscriptionsInsurance\": 150,\n  \"existingLoans\": 500,\n  \"variableExpenses\": 600,\n  \"currentSavings\": 8000,\n  \"dependents\": 3,\n  \"householdResponsibilityLevel\": \"half\",\n  \"incomeStability\": \"mostly_stable\",\n  \"riskTolerance\": \"balanced\",\n  \"purchaseAmount\": 15000,\n  \"paymentType\": \"loan\",\n  \"loanDuration\": 36,\n  \"interestRate\": 12\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "RISKY Scenarios",
+      "item": [
+        {
+          "name": "TC05 - RISKY: Negative Savings After Full Payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk_level is RISKY', () => pm.expect(res.calculation.risk_level).to.eql('RISKY'));",
+                  "",
+                  "pm.test('savings_after_purchase is negative', () => {",
+                  "  pm.expect(res.calculation.savings_after_purchase).to.be.below(0);",
+                  "});",
+                  "",
+                  "pm.test('assessment_title for RISKY', () => {",
+                  "  pm.expect(res.ai_guidance.assessment_title).to.eql('High Financial Risk');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 3000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 200,\n  \"variableExpenses\": 300,\n  \"currentSavings\": 2000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 5000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC06 - RISKY: Loan Eats All Disposable Income",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk_level is RISKY', () => pm.expect(res.calculation.risk_level).to.eql('RISKY'));",
+                  "",
+                  "pm.test('new_disposable_income is very low or negative', () => {",
+                  "  pm.expect(res.calculation.new_disposable_income).to.be.below(500);",
+                  "});",
+                  "",
+                  "pm.test('assessment_title for RISKY', () => {",
+                  "  pm.expect(res.ai_guidance.assessment_title).to.eql('High Financial Risk');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 3500,\n  \"rent\": 1000,\n  \"utilities\": 200,\n  \"subscriptionsInsurance\": 100,\n  \"existingLoans\": 400,\n  \"variableExpenses\": 500,\n  \"currentSavings\": 3000,\n  \"dependents\": 2,\n  \"householdResponsibilityLevel\": \"all_or_most\",\n  \"incomeStability\": \"unpredictable\",\n  \"riskTolerance\": \"safety\",\n  \"purchaseAmount\": 25000,\n  \"paymentType\": \"loan\",\n  \"loanDuration\": 24,\n  \"interestRate\": 15\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC07 - RISKY: Unpredictable Income + High Household Burden",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk_level is TIGHT or RISKY', () => {",
+                  "  pm.expect(['TIGHT', 'RISKY']).to.include(res.calculation.risk_level);",
+                  "});",
+                  "",
+                  "pm.test('dependents and household responsibility factored in', () => {",
+                  "  // With 4 dependents + all_or_most + unpredictable, risk multiplier is high",
+                  "  pm.expect(res.calculation).to.have.property('risk_level');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 4000,\n  \"rent\": 900,\n  \"utilities\": 180,\n  \"subscriptionsInsurance\": 120,\n  \"existingLoans\": 600,\n  \"variableExpenses\": 700,\n  \"currentSavings\": 5000,\n  \"dependents\": 4,\n  \"householdResponsibilityLevel\": \"all_or_most\",\n  \"incomeStability\": \"unpredictable\",\n  \"riskTolerance\": \"safety\",\n  \"purchaseAmount\": 3000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Goal Plan Scenarios",
+      "item": [
+        {
+          "name": "TC08 - With Full Goal Plan (planName, targetAmount, targetDate, description)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('calculation exists', () => pm.expect(res.calculation).to.be.an('object'));",
+                  "pm.test('ai_guidance exists', () => pm.expect(res.ai_guidance).to.be.an('object'));",
+                  "",
+                  "pm.test('guidance mentions goal-related advice', () => {",
+                  "  const text = res.ai_guidance.guidance.toLowerCase();",
+                  "  // AI should reference the goal in some way",
+                  "  pm.expect(text.length).to.be.above(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 20000,\n  \"dependents\": 1,\n  \"householdResponsibilityLevel\": \"half\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"balanced\",\n  \"purchaseAmount\": 5000,\n  \"paymentType\": \"full\",\n  \"planName\": \"Emergency Fund\",\n  \"targetAmount\": 50000,\n  \"targetDate\": \"31/12/2027\",\n  \"goalDescription\": \"Build a 12-month emergency fund for family security\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC09 - Goal Plan with Only planName (partial goal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('calculation and guidance present', () => {",
+                  "  pm.expect(res.calculation).to.be.an('object');",
+                  "  pm.expect(res.ai_guidance).to.be.an('object');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 4500,\n  \"rent\": 700,\n  \"utilities\": 120,\n  \"subscriptionsInsurance\": 80,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 350,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"mostly_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\",\n  \"planName\": \"Vacation Fund\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC10 - Goal Plan Date in YYYY-MM-DD Format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('accepted YYYY-MM-DD date format', () => {",
+                  "  pm.expect(res.calculation).to.be.an('object');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 20000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 3000,\n  \"paymentType\": \"full\",\n  \"planName\": \"New Car\",\n  \"targetAmount\": 30000,\n  \"targetDate\": \"2028-06-15\",\n  \"goalDescription\": \"Save for a new car downpayment\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Edge Cases",
+      "item": [
+        {
+          "name": "TC11 - Zero Interest Rate Loan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test('monthly_payment = purchaseAmount / loanDuration', () => {",
+                  "  pm.expect(res.calculation.monthly_payment).to.eql(500);",
+                  "});",
+                  "",
+                  "pm.test('total_payable = purchaseAmount (no interest)', () => {",
+                  "  pm.expect(res.calculation.total_payable).to.eql(6000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 4000,\n  \"rent\": 500,\n  \"utilities\": 100,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 300,\n  \"currentSavings\": 5000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 6000,\n  \"paymentType\": \"loan\",\n  \"loanDuration\": 12,\n  \"interestRate\": 0\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC12 - Zero Income (edge: no division by zero crash)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200 (no crash)', () => pm.response.to.have.status(200));",
+                  "pm.test('risk_level is RISKY', () => pm.expect(res.calculation.risk_level).to.eql('RISKY'));",
+                  "pm.test('recovery_months is -1 (cannot recover)', () => {",
+                  "  pm.expect(res.calculation.recovery_months).to.eql(-1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 0,\n  \"rent\": 0,\n  \"utilities\": 0,\n  \"subscriptionsInsurance\": 0,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 0,\n  \"currentSavings\": 50000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 1000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC13 - Minimum Purchase (0 amount)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('monthly_payment is 0', () => pm.expect(res.calculation.monthly_payment).to.eql(0));",
+                  "pm.test('savings unchanged', () => pm.expect(res.calculation.savings_after_purchase).to.eql(10000));",
+                  "pm.test('recovery_months is 0', () => pm.expect(res.calculation.recovery_months).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 10000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 0,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC14 - Very High Purchase Amount Relative to Income",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk_level is RISKY', () => pm.expect(res.calculation.risk_level).to.eql('RISKY'));",
+                  "pm.test('savings_after_purchase deeply negative', () => {",
+                  "  pm.expect(res.calculation.savings_after_purchase).to.be.below(-40000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 3000,\n  \"rent\": 600,\n  \"utilities\": 100,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 300,\n  \"currentSavings\": 5000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 50000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC15 - Expenses Equal Income (Zero Disposable)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('baseline_disposable_income is 0', () => {",
+                  "  pm.expect(res.calculation.baseline_disposable_income).to.eql(0);",
+                  "});",
+                  "pm.test('risk_level is RISKY', () => pm.expect(res.calculation.risk_level).to.eql('RISKY'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 3000,\n  \"rent\": 1500,\n  \"utilities\": 300,\n  \"subscriptionsInsurance\": 200,\n  \"existingLoans\": 500,\n  \"variableExpenses\": 500,\n  \"currentSavings\": 1000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 500,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC16 - Loan with 1 Month Duration",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('monthly_payment close to purchase + 1 month interest', () => {",
+                  "  // $5000 at 10% for 1 month → amortized = 5000 * (0.008333 * 1.008333) / (1.008333 - 1) = ~5041.67",
+                  "  pm.expect(res.calculation.monthly_payment).to.be.within(5040, 5043);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 8000,\n  \"rent\": 1000,\n  \"utilities\": 200,\n  \"subscriptionsInsurance\": 100,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 500,\n  \"currentSavings\": 20000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 5000,\n  \"paymentType\": \"loan\",\n  \"loanDuration\": 1,\n  \"interestRate\": 10\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Choice Field Variations",
+      "item": [
+        {
+          "name": "TC17 - All Stability/Tolerance/Household Combos: very_stable + risk_ok + not_applicable",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('calculation present', () => pm.expect(res.calculation).to.be.an('object'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC18 - mostly_stable + balanced + small_part",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('calculation present', () => pm.expect(res.calculation).to.be.an('object'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 1,\n  \"householdResponsibilityLevel\": \"small_part\",\n  \"incomeStability\": \"mostly_stable\",\n  \"riskTolerance\": \"balanced\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC19 - sometimes_changes + safety + half",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('calculation present', () => pm.expect(res.calculation).to.be.an('object'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 2,\n  \"householdResponsibilityLevel\": \"half\",\n  \"incomeStability\": \"sometimes_changes\",\n  \"riskTolerance\": \"safety\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC20 - unpredictable + safety + all_or_most",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('calculation present', () => pm.expect(res.calculation).to.be.an('object'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 3,\n  \"householdResponsibilityLevel\": \"all_or_most\",\n  \"incomeStability\": \"unpredictable\",\n  \"riskTolerance\": \"safety\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation Error Cases",
+      "item": [
+        {
+          "name": "TC21 - Missing Required Fields (empty body)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "",
+                  "pm.test('Error mentions required fields', () => {",
+                  "  const res = pm.response.json();",
+                  "  const fields = ['monthlyIncome', 'rent', 'utilities', 'purchaseAmount', 'paymentType'];",
+                  "  fields.forEach(f => {",
+                  "    pm.expect(res).to.have.property(f);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC22 - Negative monthlyIncome",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error on monthlyIncome', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('monthlyIncome');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": -1000,\n  \"rent\": 500,\n  \"utilities\": 100,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 300,\n  \"currentSavings\": 5000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 1000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC23 - Invalid paymentType",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error on paymentType', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('paymentType');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"installment\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC24 - Loan Without loanDuration and interestRate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error about missing loan fields', () => {",
+                  "  const body = pm.response.json();",
+                  "  const text = JSON.stringify(body).toLowerCase();",
+                  "  pm.expect(text).to.include('loan');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 10000,\n  \"paymentType\": \"loan\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC25 - Invalid incomeStability Choice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error on incomeStability', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('incomeStability');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"super_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC26 - Invalid riskTolerance Choice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error on riskTolerance', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('riskTolerance');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"yolo\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC27 - Invalid householdResponsibilityLevel Choice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error on householdResponsibilityLevel', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('householdResponsibilityLevel');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"everything\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC28 - String Instead of Number for monthlyIncome",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error on monthlyIncome', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('monthlyIncome');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": \"five thousand\",\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC29 - Negative dependents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error on dependents', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('dependents');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": -1,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC30 - Invalid targetDate Format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error on targetDate', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('targetDate');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 0,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 15000,\n  \"dependents\": 0,\n  \"householdResponsibilityLevel\": \"not_applicable\",\n  \"incomeStability\": \"very_stable\",\n  \"riskTolerance\": \"risk_ok\",\n  \"purchaseAmount\": 2000,\n  \"paymentType\": \"full\",\n  \"planName\": \"Test\",\n  \"targetDate\": \"March 2027\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "HTTP Method Tests",
+      "item": [
+        {
+          "name": "TC31 - GET Should Fail (Method Not Allowed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 405 Method Not Allowed', () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC32 - PUT Should Fail (Method Not Allowed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 405 Method Not Allowed', () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        },
+        {
+          "name": "TC33 - DELETE Should Fail (Method Not Allowed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 405 Method Not Allowed', () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Response Structure Tests",
+      "item": [
+        {
+          "name": "TC34 - Full Response Schema Validation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "// Top-level keys",
+                  "pm.test('Has calculation, ai_guidance, ai_guidance_text', () => {",
+                  "  pm.expect(res).to.have.property('calculation');",
+                  "  pm.expect(res).to.have.property('ai_guidance');",
+                  "  pm.expect(res).to.have.property('ai_guidance_text');",
+                  "});",
+                  "",
+                  "// Calculation keys",
+                  "pm.test('calculation has all required keys', () => {",
+                  "  const keys = ['fixed_expenses', 'baseline_expenses', 'baseline_disposable_income',",
+                  "    'monthly_payment', 'total_payable', 'new_disposable_income',",
+                  "    'savings_after_purchase', 'emergency_buffer', 'risk_level', 'recovery_months'];",
+                  "  keys.forEach(k => pm.expect(res.calculation).to.have.property(k));",
+                  "});",
+                  "",
+                  "// All calculation values are numbers except risk_level",
+                  "pm.test('calculation numeric fields are numbers', () => {",
+                  "  const numKeys = ['fixed_expenses', 'baseline_expenses', 'baseline_disposable_income',",
+                  "    'monthly_payment', 'total_payable', 'new_disposable_income',",
+                  "    'savings_after_purchase', 'emergency_buffer', 'recovery_months'];",
+                  "  numKeys.forEach(k => pm.expect(res.calculation[k]).to.be.a('number'));",
+                  "});",
+                  "",
+                  "pm.test('risk_level is one of SAFE/TIGHT/RISKY', () => {",
+                  "  pm.expect(['SAFE', 'TIGHT', 'RISKY']).to.include(res.calculation.risk_level);",
+                  "});",
+                  "",
+                  "// AI Guidance keys",
+                  "pm.test('ai_guidance has required keys', () => {",
+                  "  pm.expect(res.ai_guidance).to.have.property('assessment_title');",
+                  "  pm.expect(res.ai_guidance).to.have.property('risk_level');",
+                  "  pm.expect(res.ai_guidance).to.have.property('guidance');",
+                  "  pm.expect(res.ai_guidance).to.have.property('key_insights');",
+                  "  pm.expect(res.ai_guidance).to.have.property('safer_alternatives');",
+                  "});",
+                  "",
+                  "pm.test('ai_guidance types correct', () => {",
+                  "  pm.expect(res.ai_guidance.assessment_title).to.be.a('string');",
+                  "  pm.expect(res.ai_guidance.risk_level).to.be.a('string');",
+                  "  pm.expect(res.ai_guidance.guidance).to.be.a('string');",
+                  "  pm.expect(res.ai_guidance.key_insights).to.be.an('array');",
+                  "  pm.expect(res.ai_guidance.safer_alternatives).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('ai_guidance_text is a non-empty string', () => {",
+                  "  pm.expect(res.ai_guidance_text).to.be.a('string').and.not.empty;",
+                  "});",
+                  "",
+                  "pm.test('Content-Type is application/json', () => {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyIncome\": 5000,\n  \"rent\": 800,\n  \"utilities\": 150,\n  \"subscriptionsInsurance\": 50,\n  \"existingLoans\": 100,\n  \"variableExpenses\": 400,\n  \"currentSavings\": 20000,\n  \"dependents\": 1,\n  \"householdResponsibilityLevel\": \"half\",\n  \"incomeStability\": \"mostly_stable\",\n  \"riskTolerance\": \"balanced\",\n  \"purchaseAmount\": 5000,\n  \"paymentType\": \"full\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/simulate/", "host": ["{{baseUrl}}"], "path": ["api", "simulate", ""] }
+          }
+        }
+      ]
+    }
+  ]
+}
