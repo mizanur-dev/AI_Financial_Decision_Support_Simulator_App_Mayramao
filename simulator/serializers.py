@@ -31,19 +31,17 @@ class FinancialSimulationSerializer(serializers.Serializer):
     HOUSEHOLD_CHOICES = [
         ("all_or_most", "All or Most of It"),
         ("half", "About Half"),
-        ("small_part", "A Small Part"),
         ("not_applicable", "Not Applicable"),
     ]
 
     incomeStability_CHOICES = [
         ("very_stable", "Very Stable"),
         ("mostly_stable", "Mostly Stable"),
-        ("sometimes_changes", "Sometimes Changes"),
         ("unpredictable", "Unpredictable"),
     ]
 
     riskTolerance_CHOICES = [
-        ("safety", "I Prefer Safety"),
+        ("safe", "I Prefer Safety"),
         ("balanced", "Balanced"),
         ("risk_ok", "I'm Okay With Risk"),
     ]
